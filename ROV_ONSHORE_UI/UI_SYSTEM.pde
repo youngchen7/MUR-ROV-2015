@@ -14,46 +14,87 @@ public class ui_system
   private ArrayList<module> core_modules;
   private ArrayList<ui_module> system_modules;
   private ArrayList<ui_module> interface_modules;
-  private int mode = OPERATE; 
-
   
-  public ui_system(ControlDevice _control, Serial _port)
+  private ethernet_module my_ethernet;
+  private serial_module my_serial;
+  private int mode = CONFIGURE; 
+  
+  private boolean checkBound(MouseEvent e, ui_module m)
+  {
+    return e.getX() > m.getPosition()[0]
+        && e.getX() < m.getPosition()[0] + m.getSize()[0]
+        && e.getY() > m.getPosition()[1]
+        && e.getY() < m.getPosition()[1] + m.getSize()[1];
+  }
+  
+  private MouseEvent adjustEvent(MouseEvent e, ui_module m)
+  {
+    return new MouseEvent(e.getNative(), e.getMillis(), e.getAction(), 
+                          e.getModifiers(), e.getX() - m.getPosition()[0], 
+                          e.getY() - m.getPosition()[1], e.getButton(), e.getCount());
+  }
+  
+  public ui_system(ControlDevice _control, Serial _port, UDP _udp)
   {
     data_core = new JSONObject();
     core_modules = new ArrayList<module>();
     system_modules = new ArrayList<ui_module>();
     interface_modules = new ArrayList<ui_module>();
     grid_pixels = displayHeight*grid_percent/100;
-
+    
     
     //INITIALIZE CORE MODULES=================================================
     if(_control!=null)
     core_modules.add(new input_module(_control));
+    core_modules.add(new thruster_module());
+    my_serial = new serial_module(_port);
+    //core_modules.add(my_serial);
+    my_ethernet = new ethernet_module(_udp);
+    core_modules.add(my_ethernet);
     //INITIALIZE SYSTEM MODULES===============================================
     system_modules.add(new ui_viewbar());
     //INITIALIZE INTERFACE MODULES============================================
-        
+    interface_modules.add(new ui_controller(25, 25));
+    interface_modules.add(new ui_thrusters(775, 25));
+    
+
   }
   
-  public void mouseClick(int x, int y)
+  void notify(MouseEvent event)
   {
-    if(mouseButton == LEFT)
-    mode = OPERATE;
-    else if(mouseButton == RIGHT)
-    mode = CONFIGURE;
+    //Always notify system modules
+    //System modules take precedent over ui modules
+    for(ui_module m : system_modules)
+    {
+      if(checkBound(event, m)){
+        m.notify(adjustEvent(event, m));
+        return;
+      }
+    }
+    //Only update UI modules if operating
+    if(mode == OPERATE){
+      for(ui_module m : interface_modules)
+      {
+         if(checkBound(event, m)){
+          m.notify(adjustEvent(event, m));
+          return;
+         }
+      }
+    //Otherwise, enable module reconfiguration
+    }else{
+    }
   }
-  public void mouseMove(int x, int y)
+  
+  public void serialEvent()
   {
+    my_serial.serialEvent();
   }
-  public void mouseDragStart(int x, int y)
+  
+  public void receive(byte[] data)
   {
+    my_ethernet.receive(data);
   }
-  public void mouseDragEnd(int x, int y)
-  {
-  }  
-  public void mouseDrag(int x, int y)
-  {
-  }
+  
   public void update()
   {
     background(255);
@@ -69,8 +110,13 @@ public class ui_system
      {
        updateInterfaceModule(m);
      }
+     //If running in configuration mode, snap interface modules
+     //To nearest grid points
      for(ui_module m : interface_modules)
      {
+       if(mode == CONFIGURE){
+         snapGrid(m);
+       }
        updateInterfaceModule(m);
      }
   }
@@ -83,7 +129,11 @@ public class ui_system
      JSONObject requestedRead = new JSONObject();
      for(String field : readFields)
      {
-       requestedRead.setJSONObject(field, data_core.getJSONObject(field));
+       if(!data_core.hasKey(field)){
+          println("Module requested nonexistent read field " + field + ", update skipped");
+          return;
+       }
+        requestedRead.setJSONObject(field, data_core.getJSONObject(field)); 
      }
      JSONObject requestedWrite = m.update(requestedRead);
      for(String field : writeFields)
@@ -98,20 +148,19 @@ public class ui_system
      translate(m.getPosition()[0], m.getPosition()[1]);
      updateModule(m);
      popMatrix();
-   }
-
+    }
+   
+  private void snapGrid(ui_module m){
+    m.setPosition(snapGrid(m.getPosition()[0]), snapGrid(m.getPosition()[1]));
+    m.setSize(snapGrid(m.getSize()[0]), snapGrid(m.getSize()[1]));
+  }
   
-  /*private void printInputDebug()
-  {
-    println("Debugging User Input:");
-    println("\t Joystick[ LX | LY | RX | RY ] \t Trigger[  Z  ] \t Buttons[LJ|RJ|LS|RS|W|M|A|B|X|Y| DPAD ]");
-    print("\t         [" + nfs(LStickX, 1, 1)  + "|" + nfs(LStickY, 1, 1)  + "|" + nfs(RStickX, 1, 1)  + "|" + nfs(RStickY, 1, 1)  + "]"); 
-    print("\t             [" + nfs(Trigger, 1, 2) + "]");
-    print("\t\t        [ " + LStick + "| " + RStick + "| " + LShoulder + "| " + RShoulder + "|" + Window + "|" + Menu);
-    println("|" + A + "|" + B + "|" + X + "|" + Y + "| " + DPad + "  ]") ;
-  }*/
-  
-
+  private int snapGrid(int val){
+    val+=grid_pixels/2;
+    val/=grid_pixels;
+    val*=grid_pixels;
+    return val;
+  }
   
   private void updateGrid()
   {

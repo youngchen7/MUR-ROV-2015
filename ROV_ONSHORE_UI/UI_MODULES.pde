@@ -1,3 +1,4 @@
+//MODULE BASE
 public abstract class module
 {
   public module()
@@ -11,6 +12,8 @@ public abstract class module
   public abstract JSONObject update(JSONObject data);
 
 }
+
+//UI MODULE BASE
 public abstract class ui_module extends module
 {
   private int x_pos, y_pos, m_width, m_height;
@@ -21,31 +24,14 @@ public abstract class ui_module extends module
   //It is the UI system's job to filter and notify the module of these events. All events will be translated to the module's relative coordinate system
   public ui_module()
   {
+    x_pos = 0;
+    y_pos = 0;
+    m_width = 0;
+    m_height = 0;
   }
 
-  public void mouseClick(int x, int y)
-  {
-
-  }
-  public void mouseEnter(int x, int y)
-  {
-  }
-  public void mouseExit(int x, int y)
-  {
-  }
-  public void mouseMove(int x, int y)
-  {
-  }
-  public void mouseDragStart(int x, int y)
-  {
-  }
-  public void mouseDragEnd(int x, int y)
-  {
-  }
-  public void mouseDrag(int x, int y)
-  {
-  }
-
+  public void notify(MouseEvent event) {}    
+  
   public void setPosition(int x, int y)
   {
     x_pos = x;
@@ -74,6 +60,80 @@ public abstract class ui_module extends module
 
 }
 
+//THRUSTER CALCULATION MODULE==================================================================
+
+public class thruster_module extends module
+{
+  public thruster_module(){
+  }
+  
+  public String[] getWriteFields()
+  {
+    String[] writeFields = {"THRUSTER_DATA"};
+    return writeFields;
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"CONTROLLER_XBOX_ONE"};
+    return readFields;
+  }
+  
+  private float t_map(float val)
+  {
+    return ((val+1.0)*400.0);
+  }
+  
+  public JSONObject update(JSONObject data)
+  {
+    JSONObject writeData = new JSONObject();
+    JSONObject t_data = new JSONObject();
+    JSONObject c_data = data.getJSONObject("CONTROLLER_XBOX_ONE");
+    float[] t = {0, 0, 0, 0, 0, 0, 0, 0};
+    //FORWARD/BACK (-1.0 forward, 1.0 backward)
+    float l_y = c_data.getFloat("LSTICKY");
+    t[0] += l_y;
+    t[1] += l_y;
+    t[2] += l_y*-1;
+    t[3] += l_y*-1;
+    //LEFT/RIGHT (-1.0 left, 1.0 right)
+    float l_x = c_data.getFloat("LSTICKX");
+    t[0] += l_x*-1;
+    t[1] += l_x;
+    t[2] += l_x;
+    t[3] += l_x*-1;
+    //ROTATE (-1.0 cw, 1.0 ccw)
+    float trig = c_data.getFloat("TRIGGER");
+    t[0] += trig;
+    t[1] += trig*-1;
+    t[2] += trig;
+    t[3] += trig*-1;
+    //VERTICALS (-1.0 up, 1.0 down)
+    float r_y = c_data.getFloat("RSTICKY");
+    t[4] += r_y*-1;
+    t[5] += r_y*-1;
+    t[6] += r_y*-1;
+    t[7] += r_y*-1;
+
+    //FIND MAX, RESCALE, AND STORE
+    float t_max = 0;
+    for(float val : t){
+      if(t_max < abs(val))
+        t_max = abs(val);
+    }
+    for(int i = 0; i < 8; ++i){
+      if(t_max>1.0)
+        t[i]/=t_max;
+      t_data.setInt("THRUSTER_" + i, (int)t_map(t[i]));
+    }
+    writeData.setJSONObject("THRUSTER_DATA", t_data);
+    return writeData;
+  }
+}
+  
+  
+
+//XBOX MODULE INPUT MODULE======================================================================
 public class input_module extends module
 {
   private ControlDevice controller;
@@ -119,6 +179,130 @@ public class input_module extends module
   }
 }
 
+//SERIAL INTERFACE MODULE====================================================================
+public class serial_module extends module
+{
+  private Serial s_port;
+  private String val;
+  private boolean firstContact;
+  private int[] t_data = {400, 400, 400, 400, 400, 400, 400, 400};
+  
+  public serial_module(Serial port)
+  {
+    s_port = port;
+  }
+  
+  void serialEvent() {
+    //put the incoming data into a String - 
+    //the '\n' is our end delimiter indicating the end of a complete packet
+    val = s_port.readStringUntil('\n');
+    //make sure our data isn't empty before continuing
+    if (val != null) {
+      //trim whitespace and formatting characters (like carriage return)
+      val = trim(val);
+      println(val);
+    
+      //look for our 'A' string to start the handshake
+      //if it's there, clear the buffer, and send a request for data
+      if (firstContact == false) {
+        if (val.equals("A")) {
+          s_port.clear();
+          firstContact = true;
+          s_port.write("A");
+          println("contact");
+        }
+      }
+      else if(val.charAt(0) == 'R' ){ //if we've already established contact, keep getting and parsing data
+        String send = "";
+        for(int i = 0; i < 8; ++i)
+        {
+          send += nf(t_data[i], 3);
+        }
+        println("Serial sending: " + send);
+        s_port.write("B" + send );        
+    
+        // when you've parsed the data you have, ask for more:
+      }
+    }
+  }
+
+  public String[] getWriteFields(){
+    return new String[0];
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"THRUSTER_DATA"};
+    return readFields;
+  } 
+  
+  public JSONObject update(JSONObject data)
+  {
+    JSONObject thrusters = data.getJSONObject("THRUSTER_DATA");
+    for(int i = 0; i < 8; ++i)
+    {  
+      t_data[i] = thrusters.getInt("THRUSTER_" + i);
+    }
+    return null;
+  }
+  
+}
+
+//SYSTEM ETHERNET MODULE=====================================================================
+public class ethernet_module extends module
+{
+  private UDP udp;
+  private int[] t_data = {400, 400, 400, 400, 400, 400, 400, 400};
+  private String ip = "192.168.1.177";
+  private int port = 8888;
+
+  public ethernet_module(UDP _udp)
+  {
+    udp = _udp;
+  }
+  
+  public ethernet_module(UDP _udp, String _ip, int _port)
+  {
+    udp = _udp;
+    ip = _ip;
+    port = _port; 
+  }
+  
+  void receive(byte[] data)
+  {
+   for(int i=0; i < data.length; i++) 
+     print(char(data[i]));  
+   println(); 
+   String send = "";
+   for(int i = 0; i < 8; ++i)
+     send += nf(t_data[i], 3);
+   println("Serial sending: " + send);
+   udp.send(send, ip, port);          
+}
+
+  
+  public String[] getWriteFields(){
+    return new String[0];
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"THRUSTER_DATA"};
+    return readFields;
+  } 
+  
+  public JSONObject update(JSONObject data)
+  {
+    JSONObject thrusters = data.getJSONObject("THRUSTER_DATA");
+    for(int i = 0; i < 8; ++i)
+    {  
+      t_data[i] = thrusters.getInt("THRUSTER_" + i);
+    }
+    return null;
+  }
+}
+
+//SYSTEM UI==================================================================================
 public class ui_viewbar extends ui_module
 {
   private int bar_percent = 4;
@@ -143,9 +327,14 @@ public class ui_viewbar extends ui_module
   {
     return new String[0];
   }
+  
+  public void notify(MouseEvent event){
+    println("Viewbar UI recieved event " + event.toString());
+  }
 
   public JSONObject update(JSONObject data)
   {
+    noStroke();
     fill(255, 200);
     rectMode(CORNER);
     rect(0, 0, this.getSize()[0], this.getSize()[1]);
@@ -163,3 +352,184 @@ public class ui_viewbar extends ui_module
     return null;
   }
 }
+
+
+//CONTROLLER UI===========================================================================
+public class ui_controller extends ui_module
+{
+  PShape graphic;
+  String[] buttons = {"LSHOULDER", "RSHOULDER", "WINDOW", "MENU", "A", "B", "X", "Y", "LSTICK", "RSTICK"};
+
+  public ui_controller(int x, int y, int w, int h){
+    super.setPosition(x, y);
+    super.setSize(w, h);
+    graphic = loadShape("Data/XBOX_Controller-CB2.svg");
+    graphic.disableStyle();
+  }
+  
+  public ui_controller(int x, int y){
+    this(x, y, 700, 300);
+  }
+  
+  public ui_controller(){
+    this(0, 0);
+  }
+  
+  public String[] getWriteFields(){
+    return new String[0];
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"CONTROLLER_XBOX_ONE"};
+    return readFields;
+  }
+  
+  public void notify(MouseEvent event)
+  {
+    println("Controller UI recieved event " + event.toString());
+  }
+  
+  public JSONObject update(JSONObject data)
+  {
+    JSONObject control_data = data.getJSONObject("CONTROLLER_XBOX_ONE");
+    int size_x = this.getSize()[0];
+    int center_x = size_x/2;
+    int size_y = this.getSize()[1];
+    int center_y = size_y/2;
+    int size_min = (size_x < size_y) ? size_x : size_y;
+    int center_min = size_min/2;
+    color blue = color(51, 153, 255);
+    color gray = color(102, 102, 102);
+    stroke(0);
+    strokeWeight(3);
+    fill(255,200);    
+    rectMode(CENTER);
+    rect(size_x/2, size_y/2, this.getSize()[0], this.getSize()[1]);
+    stroke(gray, 100);
+    shapeMode(CENTER);
+    shape(graphic, center_x, center_y, size_min, size_min*2/3);
+    strokeWeight(1);
+    fill(blue, 150);
+    //UPDATE LEFT JOYSTICK
+    graphic.getChild("LSTICKF").resetMatrix();
+    graphic.getChild("LSTICKF").translate(control_data.getFloat("LSTICKX")*size_min/30, control_data.getFloat("LSTICKY")*size_min/25);
+    shape(graphic.getChild("LSTICKF"), center_x, center_y, size_min, size_min*2/3);
+    //UPDATE RIGHT JOYSTICK
+    graphic.getChild("RSTICKF").resetMatrix();
+    graphic.getChild("RSTICKF").translate(control_data.getFloat("RSTICKX")*size_min/30, control_data.getFloat("RSTICKY")*size_min/25);
+    shape(graphic.getChild("RSTICKF"), center_x, center_y, size_min, size_min*2/3);
+    //UPDATE BUTTONS
+    for(String b : buttons){
+      if(control_data.getBoolean(b))
+        shape(graphic.getChild(b), center_x, center_y, size_min, size_min*2/3);
+    }
+    //UPDATE TRIGGER
+    fill(255, 200);
+    strokeWeight(3);
+    stroke(gray, 100);
+    rect(center_x*0.97, center_y/3, size_min/2, size_min/30);
+    noStroke();
+    fill(blue, 150);
+    rect(center_x*0.97 - control_data.getFloat("TRIGGER")*size_min*0.22, center_y/3, size_min/15, size_min/30);
+    //UPDATE DPAD
+    boolean[] dpad = {false, false, false, false};
+    int t_val = (int)control_data.getFloat("DPAD");
+    if(t_val<=0){
+    }else if(t_val%2==0){
+      dpad[t_val%8/2] = true;
+    }else{
+      dpad[(t_val-1)/2] = true;
+      dpad[(t_val+1)%8/2] = true;
+    }
+    if(dpad[1])
+      rect(center_x - size_min*0.13, center_y - size_min*0.014, size_min/30, size_min/30, size_min/100); //0
+    if(dpad[2])
+      rect(center_x - size_min*0.09, center_y + size_min*0.025, size_min/30, size_min/30, size_min/100); //1
+    if(dpad[3])
+      rect(center_x - size_min*0.13, center_y + size_min*0.064, size_min/30, size_min/30, size_min/100); //2
+    if(dpad[0])
+      rect(center_x - size_min*0.17, center_y + size_min*0.025, size_min/30, size_min/30, size_min/100); //3
+    return null;
+  }
+    
+}
+
+//THRUSTER UI===================================================================================================
+public class ui_thrusters extends ui_module
+{
+  public ui_thrusters(int x, int y, int w, int h){
+    super.setPosition(x, y);
+    super.setSize(w, h);
+  }
+  
+  public ui_thrusters(int x, int y){
+    this(x, y, 400, 400);
+  }
+  
+  public ui_thrusters(){
+    this(0, 0);
+  }
+  
+  public String[] getWriteFields(){
+    return new String[0];
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"THRUSTER_DATA"};
+    return readFields;
+  } 
+  
+  public JSONObject update(JSONObject data)
+  {
+    JSONObject thruster_data = data.getJSONObject("THRUSTER_DATA"); 
+    int size_x = this.getSize()[0];
+    int center_x = size_x/2;
+    int size_y = this.getSize()[1];
+    int center_y = size_y/2;
+    int size_min = (size_x < size_y) ? size_x : size_y;
+    int center_min = size_min/2;
+    color blue = color(51, 153, 255);
+    color gray = color(102, 102, 102);
+    stroke(0);
+    strokeWeight(3);
+    fill(255,200);
+    rectMode(CENTER);
+    rect(size_x/2, size_y/2, this.getSize()[0], this.getSize()[1]);
+    float[][] coordinates = {{size_min/4, size_min/4}, {size_min*3/4, size_min/4}, { size_min*3/4, size_min*3/4}, {size_min/4, size_min*3/4},
+                           {size_min*0.4, size_min*0.45}, {size_min*0.6, size_min*0.45}, {size_min*0.6, size_min*0.55}, {size_min*0.4, size_min*0.55}};
+    int[] angles = {210, 150, 30, -30};
+    for(int i = 0; i < 4; ++i)
+    {
+      pushMatrix();
+        translate(coordinates[i][0], coordinates[i][1]);
+        rotate(radians(angles[i]));
+        rect(0, 0, size_min/12, size_min/8);
+        pushStyle();
+          noStroke();
+          fill(blue, 150);
+          rect(0, (thruster_data.getInt("THRUSTER_" + i)-400)*(size_min/9)/400, size_min/12, size_min/18);
+        popStyle();
+      popMatrix();  
+    }
+    
+    for(int i = 4; i < 8; ++i)
+    {
+      pushMatrix();
+        translate(coordinates[i][0], coordinates[i][1]);
+        ellipse(0, 0, size_min/12, size_min/12);
+        pushStyle();
+          noStroke();
+          fill(blue, 150);
+          ellipse(0, 0, size_min/12 + (thruster_data.getInt("THRUSTER_" + i)-400)*(size_min/15)/400,
+                        size_min/12 + (thruster_data.getInt("THRUSTER_" + i)-400)*(size_min/15)/400);
+        popStyle();
+      popMatrix();
+    }
+    
+    return null;
+  }
+}
+
+
