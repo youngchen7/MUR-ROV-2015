@@ -21,6 +21,7 @@ boolean sketchFullScreen() {
 void setup() {
   size(displayWidth, displayHeight);
   background(255);
+  frameRate(60);
   
   // Initialise the ControlIO=====================================
   control = ControlIO.getInstance(this);
@@ -36,8 +37,8 @@ void setup() {
   {
     println("Available ports: " + s);
   }
-  my_port = new Serial(this, Serial.list()[1], 4800);
-  my_port.bufferUntil('\n'); 
+  //my_port = new Serial(this, Serial.list()[1], 4800);
+  //my_port.bufferUntil('\n'); 
   
   udp = new UDP(this, 6000);
   udp.listen(true);

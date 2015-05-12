@@ -253,7 +253,7 @@ public class ethernet_module extends module
 {
   private UDP udp;
   private int[] t_data = {400, 400, 400, 400, 400, 400, 400, 400};
-  private String ip = "192.168.1.177";
+  private String ip = "192.168.11.255";
   private int port = 8888;
 
   public ethernet_module(UDP _udp)
@@ -298,6 +298,13 @@ public class ethernet_module extends module
     {  
       t_data[i] = thrusters.getInt("THRUSTER_" + i);
     }
+    
+   String send = "";
+   for(int i = 0; i < 8; ++i)
+     send += nf(t_data[i], 3);
+   println("Serial sending: " + send);
+   udp.send(send, ip, port);     
+   
     return null;
   }
 }
