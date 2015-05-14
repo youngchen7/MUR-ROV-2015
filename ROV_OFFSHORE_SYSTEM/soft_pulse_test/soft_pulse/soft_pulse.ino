@@ -1,8 +1,7 @@
 const int cycle_period = 20000;
 unsigned long cycle_update = 0;
 unsigned long cycle_delta;
-int counter = 0;
-int t_val[8] = {1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800};
+int t_val[8] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 void setup() {
   // put your setup code here, to run once:
@@ -25,6 +24,7 @@ void loop() {
         Serial.print(" ");
       }
       Serial.println();
+      Serial.read();
     }else{
       int t = Serial.parseInt();
       int val = Serial.parseInt();
@@ -42,7 +42,7 @@ void loop() {
   cycle_delta = micros() - cycle_update;
   if(cycle_delta > cycle_period)
   {
-    cycle_update += cycle_delta;
+    cycle_update = micros();
   }else{
     for(int t = 0; t < 8; ++t)
     {
