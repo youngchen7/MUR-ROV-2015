@@ -17,14 +17,24 @@ void loop() {
   // put your main code here, to run repeatedly:
   while (Serial.available() > 0) {
     Serial.println("Reading serial");
-    int t = Serial.parseInt();
-    int val = Serial.parseInt();
-    Serial.print("Setting thruster ");   
-    Serial.print(t);
-    Serial.print(" to ");
-    Serial.println(val);
-    if (Serial.read() == '\n'){
-      t_val[t] = constrain(val, 1100, 1900);      
+    if(Serial.read() == 'R'){
+      Serial.print("Printing Thruster Values: ");
+      for(int t = 0; t < 8; ++t)
+      {
+        Serial.print(t_val[t]);
+        Serial.print(" ");
+      }
+      Serial.println();
+    }else{
+      int t = Serial.parseInt();
+      int val = Serial.parseInt();
+      Serial.print("Setting thruster ");   
+      Serial.print(t);
+      Serial.print(" to ");
+      Serial.println(val);
+      if (Serial.read() == '\n'){
+        t_val[t] = constrain(val, 1100, 1900);      
+      }
     }
       
   }
