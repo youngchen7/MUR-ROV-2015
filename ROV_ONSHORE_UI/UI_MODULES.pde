@@ -61,7 +61,7 @@ public abstract class ui_module extends module
 }
 
 //THRUSTER CALCULATION MODULE==================================================================
-
+//Left stick horizontal planer movement. Right stick pitch and roll. Triggers yaw. 
 public class thruster_module extends module
 {
   public thruster_module(){
@@ -108,20 +108,48 @@ public class thruster_module extends module
     t[1] += trig*-1;
     t[2] += trig;
     t[3] += trig*-1;
-    //VERTICALS (-1.0 up, 1.0 down)
+    //VERTICALS (1.0 up, -1.0 down) pitch
     float r_y = c_data.getFloat("RSTICKY");
     t[4] += r_y*-1;
     t[5] += r_y*-1;
-    t[6] += r_y*-1;
-    t[7] += r_y*-1;
+    t[6] += r_y*1;
+    t[7] += r_y*1;
+    //VERTICALS (1.0 up, -1.0 down) roll
+    float r_x = c_data.getFloat("RSTICKX");
+    t[4] += r_x*-1;
+    t[5] += r_x*1;
+    t[6] += r_x*1;
+    t[7] += r_x*-1;
+    //UP/DOWN (1.0 up, -1.0 down) strictly z movement
+    boolean z_up = c_data.getBoolean("RSHOULDER");
+    boolean z_down = c_data.getBoolean("LSHOULDER");
+    float z_thrust = 0;
+    if(z_up) z_thrust+=1;
+    if(z_down) z_thrust-=1;
+    t[4] += z_thrust*1;
+    t[5] += z_thrust*1;
+    t[6] += z_thrust*1;
+    t[7] += z_thrust*1;
+    
 
     //FIND MAX, RESCALE, AND STORE
+    //Horizontal Thrusters
     float t_max = 0;
-    for(float val : t){
-      if(t_max < abs(val))
-        t_max = abs(val);
+    for(int i = 0; i < 4; i++){
+      if(t_max < abs(t[i]))
+        t_max = abs(t[i]);
     }
-    for(int i = 0; i < 8; ++i){
+    for(int i = 0; i < 4; ++i){
+      if(t_max>1.0)
+        t[i]/=t_max;
+      t_data.setInt("THRUSTER_" + i, (int)t_map(t[i]));
+    }
+    //Vertical Thrusters
+    for(int i = 4; i < 8; i++){
+      if(t_max < abs(t[i]))
+        t_max = abs(t[i]);
+    }
+    for(int i = 4; i < 8; ++i){
       if(t_max>1.0)
         t[i]/=t_max;
       t_data.setInt("THRUSTER_" + i, (int)t_map(t[i]));
