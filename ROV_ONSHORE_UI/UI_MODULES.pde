@@ -283,7 +283,6 @@ public class ethernet_module extends module
   private int[] t_data = {400, 400, 400, 400, 400, 400, 400, 400};
   private String ip = "192.168.11.255";
   private int port = 8888;
-
   public ethernet_module(UDP _udp)
   {
     udp = _udp;
