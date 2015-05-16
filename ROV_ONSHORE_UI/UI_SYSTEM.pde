@@ -47,6 +47,7 @@ public class ui_system
     if(_control!=null)
     core_modules.add(new input_module(_control));
     core_modules.add(new thruster_module());
+    core_modules.add(new servo_module());
     my_serial = new serial_module(_port);
     //core_modules.add(my_serial);
     my_ethernet = new ethernet_module(_udp);
@@ -56,6 +57,7 @@ public class ui_system
     //INITIALIZE INTERFACE MODULES============================================
     interface_modules.add(new ui_controller(25, 25));
     interface_modules.add(new ui_thrusters(775, 25));
+    interface_modules.add(new ui_servo(1200,25));
     
 
   }

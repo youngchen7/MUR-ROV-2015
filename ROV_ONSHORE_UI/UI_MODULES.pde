@@ -92,16 +92,16 @@ public class thruster_module extends module
     float[] t = {0, 0, 0, 0, 0, 0, 0, 0};
     //FORWARD/BACK (-1.0 forward, 1.0 backward)
     float l_y = c_data.getFloat("LSTICKY");
-    t[0] += l_y;
-    t[1] += l_y;
-    t[2] += l_y*-1;
-    t[3] += l_y*-1;
+    t[0] += l_y*-1;
+    t[1] += l_y*-1;
+    t[2] += l_y;
+    t[3] += l_y;
     //LEFT/RIGHT (-1.0 left, 1.0 right)
     float l_x = c_data.getFloat("LSTICKX");
-    t[0] += l_x*-1;
-    t[1] += l_x;
-    t[2] += l_x;
-    t[3] += l_x*-1;
+    t[0] += l_x;
+    t[1] += l_x*-1;
+    t[2] += l_x*-1;
+    t[3] += l_x;
     //ROTATE (-1.0 cw, 1.0 ccw)
     float trig = c_data.getFloat("TRIGGER");
     t[0] += trig;
@@ -159,7 +159,46 @@ public class thruster_module extends module
   }
 }
   
-  
+//SERVO CACULATION MODULE
+public class servo_module extends module
+{  
+  //min 544, max 2400
+  private int default_angle; 
+  public servo_module()
+  {
+    default_angle = 1472;
+  }
+
+  public String[] getReadFields(){
+    String[] readFields = {"CONTROLLER_XBOX_ONE"};
+    return readFields;    
+  }
+
+  public String[] getWriteFields(){
+    String[] writeFields = {"SERVO_DATA"};
+    return writeFields;
+  }
+
+  public JSONObject update(JSONObject data){
+    JSONObject writeData = new JSONObject();
+    JSONObject s_data = new JSONObject();
+    JSONObject c_data = data.getJSONObject("CONTROLLER_XBOX_ONE");
+    //Read controller values
+    boolean a_val = c_data.getBoolean("A");
+    boolean b_val = c_data.getBoolean("B");
+    boolean x_val = c_data.getBoolean("X");
+    if(a_val) default_angle += 10; 
+    if(b_val) default_angle -= 10;
+    if(default_angle > 2400) default_angle = 2400;
+    if(default_angle < 544) default_angle = 544;
+    if(x_val) default_angle = 1472; 
+    s_data.setInt("SERVO_VAL", default_angle);
+    writeData.setJSONObject("SERVO_DATA", s_data);
+    return writeData;
+  }
+
+}
+
 
 //XBOX MODULE INPUT MODULE======================================================================
 public class input_module extends module
@@ -426,6 +465,7 @@ public class ui_controller extends ui_module
   
   public JSONObject update(JSONObject data)
   {
+    
     JSONObject control_data = data.getJSONObject("CONTROLLER_XBOX_ONE");
     int size_x = this.getSize()[0];
     int center_x = size_x/2;
@@ -435,6 +475,7 @@ public class ui_controller extends ui_module
     int center_min = size_min/2;
     color blue = color(51, 153, 255);
     color gray = color(102, 102, 102);
+   
     stroke(0);
     strokeWeight(3);
     fill(255,200);    
@@ -526,6 +567,13 @@ public class ui_thrusters extends ui_module
     int center_min = size_min/2;
     color blue = color(51, 153, 255);
     color gray = color(102, 102, 102);
+    
+     
+    translate(center_x/2, center_y/2);
+    rotate(radians(180));
+    translate(-center_x/2, -center_y/2);
+
+    
     stroke(0);
     strokeWeight(3);
     fill(255,200);
@@ -566,4 +614,51 @@ public class ui_thrusters extends ui_module
   }
 }
 
+//SERVO UI===================================================================================================
+public class ui_servo extends ui_module
+{
+  public ui_servo(int x, int y, int w, int h){
+    super.setPosition(x, y);
+    super.setSize(w, h);
+  }
+  
+  public ui_servo(int x, int y){
+    this(x, y, 200, 200);
+  }
+  
+  public ui_servo(){
+    this(0, 0);
+  }
+  
+  public String[] getWriteFields(){
+    return new String[0];
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"SERVO_DATA"};
+    return readFields;
+  } 
+  
+   public JSONObject update(JSONObject data)
+  {
+    int size_x = this.getSize()[0];
+    int center_x = size_x/2;
+    int size_y = this.getSize()[1];
+    int center_y = size_y/2;
+    stroke(0);
+    strokeWeight(3);
+    fill(255,200);
+    rectMode(CENTER);
+    rect(size_x/2, size_y/2, this.getSize()[0], this.getSize()[1]);
+    JSONObject servo_data = data.getJSONObject("SERVO_DATA"); 
+    int servo_val = servo_data.getInt("SERVO_VAL");
+    float degrees = (servo_val-544)/10.3;
+    fill(50);
+    textMode(CENTER);
+    text(degrees, center_x-60, center_y-5);
+    
+    return null;
+  }
+}
 
