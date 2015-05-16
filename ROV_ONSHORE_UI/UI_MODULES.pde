@@ -199,6 +199,40 @@ public class servo_module extends module
 
 }
 
+//LED Input Module
+public class LED_module extends module
+{
+  boolean p_y_val = false;
+  private boolean on;
+  public LED_module()
+  {
+    on = true;
+  }
+
+  public String[] getReadFields(){
+    String[] readFields = {"CONTROLLER_XBOX_ONE"};
+    return readFields;  
+  }
+
+  public String[] getWriteFields(){
+     String[] writeFields = {"LED_DATA"};
+    return writeFields;
+  }
+
+  public JSONObject update(JSONObject data){
+    JSONObject writeData = new JSONObject();
+    JSONObject LED_data = new JSONObject();
+    JSONObject c_data = data.getJSONObject("CONTROLLER_XBOX_ONE");
+    //Read controller values
+    boolean y_val = c_data.getBoolean("Y");
+    if(!p_y_val && y_val) on = !on;
+    p_y_val = y_val;
+    LED_data.setBoolean("LED_VAL", on);
+    writeData.setJSONObject("LED_DATA", LED_data);
+    return writeData;
+  }
+
+}
 
 //XBOX MODULE INPUT MODULE======================================================================
 public class input_module extends module
@@ -354,13 +388,17 @@ public class ethernet_module extends module
   
   public String[] getReadFields()
   {
-    String[] readFields = {"THRUSTER_DATA"};
+    String[] readFields = {"THRUSTER_DATA", "SERVO_DATA", "LED_DATA"};
     return readFields;
   } 
   
   public JSONObject update(JSONObject data)
   {
     JSONObject thrusters = data.getJSONObject("THRUSTER_DATA");
+    JSONObject servos = data.getJSONObject("SERVO_DATA");
+    JSONObject leds = data.getJSONObject("LED_DATA");
+    int s_data = servos.getInt("SERVO_VAL");
+    boolean led_data = leds.getBoolean("LED_VAL");
     for(int i = 0; i < 8; ++i)
     {  
       t_data[i] = thrusters.getInt("THRUSTER_" + i);
@@ -369,6 +407,10 @@ public class ethernet_module extends module
    String send = "";
    for(int i = 0; i < 8; ++i)
      send += nf(t_data[i], 3);
+   send += nf(s_data, 4);
+   if(led_data) send += "1"; 
+   else send += "0";
+   
    println("Serial sending: " + send);
    udp.send(send, ip, port);     
    
@@ -657,6 +699,56 @@ public class ui_servo extends ui_module
     fill(50);
     textMode(CENTER);
     text(degrees, center_x-60, center_y-5);
+    
+    return null;
+  }
+}
+
+//LED UI===================================================================================================
+public class ui_led extends ui_module
+{
+  public ui_led(int x, int y, int w, int h){
+    super.setPosition(x, y);
+    super.setSize(w, h);
+  }
+  
+  public ui_led(int x, int y){
+    this(x, y, 200, 200);
+  }
+  
+  public ui_led(){
+    this(0, 0);
+  }
+  
+  public String[] getWriteFields(){
+    return new String[0];
+  }
+  
+  public String[] getReadFields()
+  {
+    String[] readFields = {"LED_DATA"};
+    return readFields;
+  } 
+  
+   public JSONObject update(JSONObject data)
+  {
+    int size_x = this.getSize()[0];
+    int center_x = size_x/2;
+    int size_y = this.getSize()[1];
+    int center_y = size_y/2;
+    stroke(0);
+    strokeWeight(3);
+    fill(255,200);
+    rectMode(CENTER);
+    rect(size_x/2, size_y/2, this.getSize()[0], this.getSize()[1]);
+    JSONObject LED_data = data.getJSONObject("LED_DATA"); 
+    boolean LED_value = LED_data.getBoolean("LED_VAL");
+    String message;
+    if(LED_value) message = "LED ON";
+    else message = "LED OFF";
+    fill(50);
+    textMode(CENTER);
+    text(message, center_x-60, center_y-5);
     
     return null;
   }
