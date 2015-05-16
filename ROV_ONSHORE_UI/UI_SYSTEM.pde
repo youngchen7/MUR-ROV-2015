@@ -57,7 +57,7 @@ public class ui_system
     //INITIALIZE INTERFACE MODULES============================================
     interface_modules.add(new ui_controller(25, 25));
     interface_modules.add(new ui_thrusters(775, 25));
-    interface_modules.add(new ui_servo(25, 100));
+    interface_modules.add(new ui_servo(25, 350));
     
 
   }
