@@ -322,6 +322,7 @@ public class ethernet_module extends module
   private int[] t_data = {400, 400, 400, 400, 400, 400, 400, 400};
   private String ip = "192.168.11.255";
   private int port = 8888;
+
   public ethernet_module(UDP _udp)
   {
     udp = _udp;
@@ -568,10 +569,9 @@ public class ui_thrusters extends ui_module
     color blue = color(51, 153, 255);
     color gray = color(102, 102, 102);
     
-     
-    translate(center_x/2, center_y/2);
     rotate(radians(180));
-    translate(-center_x/2, -center_y/2);
+    translate(-2*center_x, -2*center_y);
+    //translate(-center_x/2, -center_y/2);
 
     
     stroke(0);
